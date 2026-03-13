@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Free PDF Merger</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      max-width: 900px;
+      margin: auto;
+      text-align: center;
+      background: #f5f5f5;
+    }
+    h1 { margin-bottom: 20px; }
+    input, button {
+      padding: 10px 15px;
+      margin: 10px;
+      font-size: 16px;
+    }
+    #fileList {
+      list-style: none;
+      padding: 0;
+      margin-top: 20px;
+      text-align: left;
+    }
+    #fileList li {
+      padding: 10px;
+      background: #fff;
+      margin-bottom: 5px;
+      cursor: move;
+      border: 1px solid #ccc;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #fileList li span { flex-grow: 1; }
+    #fileList li img {
+      width: 30px;
+      height: 30px;
+      object-fit: cover;
+      margin-left: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Free PDF Merger</h1>
+
+  <input type="file" id="pdfFiles" accept="application/pdf" multiple />
+  <br>
+  <button id="mergeBtn">Merge & Download</button>
+  <button id="printBtn" style="display:none;">Print Merged PDF</button>
+
+  <ul id="fileList"></ul>
+
+  <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+  <script>
+    const pdfFilesInput = document.getElementById("pdfFiles");
+    const fileList = document.getElementById("fileList");
+    const mergeBtn = document.getElementById("mergeBtn");
+    const printBtn = document.getElementById("printBtn");
+    let filesArray = [];
+
+    // Drag and drop sorting
+    let draggedIndex = null;
+
+    pdfFilesInput.addEventListener("change", () => {
+      filesArray = Array.from(pdfFilesInput.files);
+      renderFileList();
+    });
+
+    function renderFileList() {
+      fileList.innerHTML = '';
+      filesArray.forEach((file, index) => {
+        const li = document.createElement('li');
+        li.draggable = true;
+
+        const span = document.createElement('span');
+        span.textContent = file.name;
+        li.appendChild(span);
+
+        li.addEventListener("dragstart", () => draggedIndex = index);
+        li.addEventListener("dragover", e => e.preventDefault());
+        li.addEventListener("drop", () => {
+          const temp = filesArray[draggedIndex];
+          filesArray[draggedIndex] = filesArray[index];
+          filesArray[index] = temp;
+          renderFileList();
+        });
+
+        fileList.appendChild(li);
+      });
+    }
+
+    let mergedBlobUrl = null;
+
+    mergeBtn.addEventListener("click", async () => {
+      if (filesArray.length < 2) {
+        alert("Select at least 2 PDF files.");
+        return;
+      }
+
+      const mergedPdf = await PDFLib.PDFDocument.create();
+
+      for (const file of filesArray) {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await PDFLib.PDFDocument.load(arrayBuffer);
+        const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+        copiedPages.forEach((p) => mergedPdf.addPage(p));
+      }
+
+      const mergedBytes = await mergedPdf.save();
+      const blob = new Blob([mergedBytes], { type: "application/pdf" });
+      if (mergedBlobUrl) URL.revokeObjectURL(mergedBlobUrl);
+      mergedBlobUrl = URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = mergedBlobUrl;
+      link.download = "merged.pdf";
+      link.click();
+
+      printBtn.style.display = "inline-block";
+    });
+
+    printBtn.addEventListener("click", () => {
+      if (mergedBlobUrl) {
+        const iframe = document.createElement("iframe");
+        iframe.style.display = "none";
+        iframe.src = mergedBlobUrl;
+        document.body.appendChild(iframe);
+        iframe.onload = () => {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+        };
+      }
+    });
+  </script>
+</body>
+</html>
