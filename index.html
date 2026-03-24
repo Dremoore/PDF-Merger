@@ -14,17 +14,33 @@
       background: #f5f5f5;
     }
     h1 { margin-bottom: 20px; }
+
     input, button {
       padding: 10px 15px;
       margin: 10px;
       font-size: 16px;
     }
+
+    #dropZone {
+      border: 2px dashed #888;
+      padding: 30px;
+      margin-bottom: 15px;
+      background: #fafafa;
+      cursor: pointer;
+    }
+
+    #dropZone.dragover {
+      background: #e0f7fa;
+      border-color: #00796b;
+    }
+
     #fileList {
       list-style: none;
       padding: 0;
       margin-top: 20px;
       text-align: left;
     }
+
     #fileList li {
       padding: 10px;
       background: #fff;
@@ -35,18 +51,19 @@
       justify-content: space-between;
       align-items: center;
     }
-    #fileList li span { flex-grow: 1; }
-    #fileList li img {
-      width: 30px;
-      height: 30px;
-      object-fit: cover;
-      margin-left: 10px;
+
+    #fileList li span {
+      flex-grow: 1;
     }
   </style>
 </head>
 <body>
 
   <h1>Free PDF Merger</h1>
+
+  <div id="dropZone">
+    Drag & Drop PDF files here or click to select
+  </div>
 
   <input type="file" id="pdfFiles" accept="application/pdf" multiple />
   <br>
@@ -61,18 +78,63 @@
     const fileList = document.getElementById("fileList");
     const mergeBtn = document.getElementById("mergeBtn");
     const printBtn = document.getElementById("printBtn");
+    const dropZone = document.getElementById("dropZone");
+
     let filesArray = [];
 
-    // Drag and drop sorting
+    // Drag sorting
     let draggedIndex = null;
 
+    // FILE INPUT (append instead of replace)
     pdfFilesInput.addEventListener("change", () => {
-      filesArray = Array.from(pdfFilesInput.files);
+      const newFiles = Array.from(pdfFilesInput.files)
+        .filter(file => file.type === "application/pdf");
+
+      filesArray = filesArray.concat(newFiles);
+      renderFileList();
+    });
+
+    // DROP ZONE CLICK
+    dropZone.addEventListener("click", () => {
+      pdfFilesInput.click();
+    });
+
+    // PREVENT DEFAULT
+    ["dragenter", "dragover", "dragleave", "drop"].forEach(event => {
+      dropZone.addEventListener(event, e => e.preventDefault());
+    });
+
+    // HIGHLIGHT
+    ["dragenter", "dragover"].forEach(event => {
+      dropZone.addEventListener(event, () => {
+        dropZone.classList.add("dragover");
+      });
+    });
+
+    // REMOVE HIGHLIGHT
+    ["dragleave", "drop"].forEach(event => {
+      dropZone.addEventListener(event, () => {
+        dropZone.classList.remove("dragover");
+      });
+    });
+
+    // HANDLE DROP
+    dropZone.addEventListener("drop", (e) => {
+      const droppedFiles = Array.from(e.dataTransfer.files)
+        .filter(file => file.type === "application/pdf");
+
+      if (droppedFiles.length === 0) {
+        alert("Only PDF files are allowed.");
+        return;
+      }
+
+      filesArray = filesArray.concat(droppedFiles);
       renderFileList();
     });
 
     function renderFileList() {
       fileList.innerHTML = '';
+
       filesArray.forEach((file, index) => {
         const li = document.createElement('li');
         li.draggable = true;
@@ -81,6 +143,7 @@
         span.textContent = file.name;
         li.appendChild(span);
 
+        // Drag reorder
         li.addEventListener("dragstart", () => draggedIndex = index);
         li.addEventListener("dragover", e => e.preventDefault());
         li.addEventListener("drop", () => {
@@ -113,6 +176,7 @@
 
       const mergedBytes = await mergedPdf.save();
       const blob = new Blob([mergedBytes], { type: "application/pdf" });
+
       if (mergedBlobUrl) URL.revokeObjectURL(mergedBlobUrl);
       mergedBlobUrl = URL.createObjectURL(blob);
 
@@ -130,6 +194,7 @@
         iframe.style.display = "none";
         iframe.src = mergedBlobUrl;
         document.body.appendChild(iframe);
+
         iframe.onload = () => {
           iframe.contentWindow.focus();
           iframe.contentWindow.print();
@@ -137,5 +202,6 @@
       }
     });
   </script>
+
 </body>
 </html>
